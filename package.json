@@ -1,0 +1,13 @@
+{
+  "name": "amazon-ecs-portal",
+  "version": "1.0.0",
+  "description": "Amazon-Style ECS Login Portal with Telegram Integration",
+  "scripts": {
+    "setup": "npm install --prefix app && npm install --prefix server",
+    "build": "npm run build --prefix app",
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

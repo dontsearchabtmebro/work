@@ -26,15 +26,26 @@ const pendingRequests = new Map();
 const ALLOWED_IDS_FILE = path.join(__dirname, 'allowed_ids.json');
 
 function getAllowedIds() {
-  if (!fs.existsSync(ALLOWED_IDS_FILE)) {
-    fs.writeFileSync(ALLOWED_IDS_FILE, JSON.stringify([]));
-    return [];
+  const ids = new Set();
+  
+  // 1. Load from Environment Variable (Persistent across restarts)
+  if (process.env.INITIAL_ALLOWED_IDS) {
+    process.env.INITIAL_ALLOWED_IDS.split(',').forEach(id => {
+      if (id.trim()) ids.add(id.trim().toLowerCase());
+    });
   }
-  try {
-    return JSON.parse(fs.readFileSync(ALLOWED_IDS_FILE, 'utf-8'));
-  } catch (e) {
-    return [];
+
+  // 2. Load from local file (Temporary session IDs)
+  if (fs.existsSync(ALLOWED_IDS_FILE)) {
+    try {
+      const fileIds = JSON.parse(fs.readFileSync(ALLOWED_IDS_FILE, 'utf-8'));
+      fileIds.forEach(id => ids.add(id.toLowerCase()));
+    } catch (e) {
+      console.error('Error reading allowed_ids.json:', e);
+    }
   }
+  
+  return Array.from(ids);
 }
 
 function saveAllowedIds(ids) {
@@ -44,14 +55,26 @@ function saveAllowedIds(ids) {
 // Telegram Bot Commands
 bot.onText(/\/allow (.+)/, (msg, match) => {
   if (msg.chat.id.toString() !== ADMIN_CHAT_ID) return;
-  const idToAdd = match[1].trim().toLowerCase();
-  const ids = getAllowedIds();
-  if (!ids.includes(idToAdd)) {
-    ids.push(idToAdd);
-    saveAllowedIds(ids);
-    bot.sendMessage(msg.chat.id, `✅ Added ${idToAdd} to the allowlist.`);
+  
+  // Support space or comma separated IDs
+  const input = match[1].replace(/,/g, ' ');
+  const idsToAdd = input.split(/\s+/).filter(id => id.trim()).map(id => id.trim().toLowerCase());
+  
+  const currentIds = getAllowedIds();
+  const newlyAdded = [];
+
+  idsToAdd.forEach(id => {
+    if (!currentIds.includes(id)) {
+      currentIds.push(id);
+      newlyAdded.push(id);
+    }
+  });
+
+  if (newlyAdded.length > 0) {
+    saveAllowedIds(currentIds);
+    bot.sendMessage(msg.chat.id, `✅ Added ${newlyAdded.length} ID(s) to the allowlist:\n${newlyAdded.join('\n')}`);
   } else {
-    bot.sendMessage(msg.chat.id, `⚠️ ${idToAdd} is already allowed.`);
+    bot.sendMessage(msg.chat.id, `⚠️ These IDs are already allowed or list was empty.`);
   }
 });
 
